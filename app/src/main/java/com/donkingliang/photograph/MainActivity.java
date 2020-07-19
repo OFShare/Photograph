@@ -1,6 +1,7 @@
 package com.donkingliang.photograph;
 
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -11,8 +12,12 @@ import android.Manifest;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -58,6 +63,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_NOSENSOR);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         ivCamera = findViewById(R.id.ivCamera);
         ivPhoto = findViewById(R.id.ivPhoto);
 
@@ -81,9 +88,56 @@ public class MainActivity extends AppCompatActivity {
             openCamera();
         } else {
             //没有权限，申请权限。
-            ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.CAMERA},
+            ActivityCompat.requestPermissions(this,
+                    new String[] {Manifest.permission.CAMERA,
+                            Manifest.permission.READ_EXTERNAL_STORAGE,
+                            Manifest.permission.WRITE_EXTERNAL_STORAGE},
                     PERMISSION_CAMERA_REQUEST_CODE);
         }
+    }
+
+    private void showImg() {
+        int iw, ih, vw, vh;
+        boolean needRotate;
+
+        BitmapFactory.Options option = new BitmapFactory.Options();
+        option.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(mCameraImagePath, option);
+        iw = option.outWidth;
+        ih = option.outHeight;
+        vw = ivPhoto.getWidth();
+        vh = ivPhoto.getHeight();
+
+        int scaleFactor;
+        if (iw < ih) {
+            needRotate = false;
+            scaleFactor = Math.min(iw / vw, ih / vh);
+        } else {
+            needRotate = true;
+            scaleFactor = Math.min(ih / vw, iw / vh);
+        }
+
+        option.inJustDecodeBounds = false;
+        option.inSampleSize = scaleFactor;
+        Bitmap bmp = BitmapFactory.decodeFile(mCameraImagePath, option);
+
+        if (needRotate) {
+            Matrix matrix = new Matrix();
+            // 顺时针
+            matrix.postRotate(90);
+            bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), matrix, true);
+        }
+        ivPhoto.setImageBitmap(bmp);
+        // 显示图像文件相关信息
+        new AlertDialog.Builder(this)
+                .setTitle("图像文件信息")
+                .setMessage("图像文件路径: " + mCameraImagePath +
+                        "\n 原始尺寸: " + iw + "x" + ih +
+                        "\n 载入尺寸: " + bmp.getWidth() + "x" + bmp.getHeight() +
+                        "\n 显示尺寸: " + vw + "x" + vh + (needRotate? "(旋转)": "")
+                )
+                .setNeutralButton("关闭", null)
+                .show();
     }
 
     @Override
@@ -96,7 +150,9 @@ public class MainActivity extends AppCompatActivity {
                     ivPhoto.setImageURI(mCameraUri);
                 } else {
                     // 使用图片路径加载
-                    ivPhoto.setImageBitmap(BitmapFactory.decodeFile(mCameraImagePath));
+                    // Bitmap bmp = BitmapFactory.decodeFile(mCameraImagePath);
+                    // ivPhoto.setImageBitmap(bmp);
+                    showImg();
                 }
             } else {
                 Toast.makeText(this,"取消",Toast.LENGTH_LONG).show();
@@ -198,5 +254,6 @@ public class MainActivity extends AppCompatActivity {
         return tempFile;
     }
 }
+
 
 
